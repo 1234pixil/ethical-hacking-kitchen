@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Ethical Hacking Kitchen</title>
+<style>
+/*
+  Layout concept: a single terminal window. A tab rail across the top picks
+  the active tool; each tool is a two-pane "in / out" console split, the way
+  a real CLI pipe (input | tool | output) reads. Committing to one dark
+  terminal world on purpose — no light-mode toggle, like a real shell.
+*/
+:root{
+  --bg:#0b0f0d;
+  --panel:#111712;
+  --line:#1f2b22;
+  --fg:#d7f4e1;
+  --dim:#6f9a7f;
+  --accent:#4ef2a0;
+  --accent-dim:#214833;
+  --warn:#f2b84e;
+  --err:#f2694e;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--bg);
+  color:var(--fg);
+  font-family:var(--mono);
+  margin:0;
+  min-height:100%;
+  padding-left:max(16px, env(safe-area-inset-left,0px));
+  padding-right:max(16px, env(safe-area-inset-right,0px));
+}
+html,body{height:100%}
+
+.wrap{
+  max-width:980px;
+  margin:0 auto;
+  padding-block:28px 48px;
+  display:flex;
+  flex-direction:column;
+  gap:18px;
+  min-width:0;
+}
+
+/* ---- header / chrome ---- */
+.titlebar{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 14px;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:8px 8px 0 0;
+}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--line)}
+.dot.r{background:#f2694e55}
+.dot.y{background:#f2b84e55}
+.dot.g{background:#4ef2a055}
+.titlebar .name{
+  margin-left:4px;
+  color:var(--dim);
+  font-size:12px;
+  letter-spacing:.04em;
+}
+.titlebar .path{
+  margin-left:auto;
+  font-size:11px;
+  color:var(--dim);
+  letter-spacing:.03em;
+}
+
+.hero{
+  border:1px solid var(--line);
+  border-top:none;
+  background:var(--panel);
+  padding:20px 22px 22px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.hero h1{
+  margin:0;
+  font-size:22px;
+  font-weight:600;
+  letter-spacing:-.01em;
+}
+.hero h1 .cursor{
+  display:inline-block;
+  width:9px;height:18px;
+  background:var(--accent);
+  margin-left:6px;
+  vertical-align:-3px;
+  animation:blink 1.1s step-end infinite;
+}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+.hero p{
+  margin:0;
+  color:var(--dim);
+  font-size:13px;
+  max-width:60ch;
+  line-height:1.6;
+}
+
+/* ---- tab rail ---- */
+.tabs{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  border:1px solid var(--line);
+  background:var(--panel);
+  padding:8px;
+  border-radius:8px;
+}
+.tab{
+  font-family:var(--mono);
+  font-size:12px;
+  letter-spacing:.02em;
+  color:var(--dim);
+  background:transparent;
+  border:1px solid transparent;
+  padding:7px 12px;
+  border-radius:6px;
+  cursor:pointer;
+}
+.tab:hover{color:var(--fg); border-color:var(--line)}
+.tab[aria-selected="true"]{
+  color:var(--bg);
+  background:var(--accent);
+  font-weight:600;
+}
+.tab .n{opacity:.6; margin-right:6px}
+.tab[aria-selected="true"] .n{opacity:.5}
+
+/* ---- console panel ---- */
+.console{
+  border:1px solid var(--line);
+  background:var(--panel);
+  border-radius:8px;
+  padding:18px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+.console[hidden]{display:none}
+
+.tool-head{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.tool-head h2{
+  margin:0;
+  font-size:14px;
+  color:var(--accent);
+  font-weight:600;
+  letter-spacing:.01em;
+}
+.tool-head .hint{
+  font-size:11.5px;
+  color:var(--dim);
+}
+
+.field{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  min-width:0;
+}
+.field label{
+  font-size:11px;
+  color:var(--dim);
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+textarea, input[type="text"], input[type="number"], select{
+  font-family:var(--mono);
+  font-size:13px;
+  color:var(--fg);
+  background:#0d1310;
+  border:1px solid var(--line);
+  border-radius:6px;
+  padding:11px 12px;
+  resize:vertical;
+  width:100%;
+}
+textarea{min-height:92px; line-height:1.5}
+textarea:focus, input:focus, select:focus, button:focus-visible{
+  outline:2px solid var(--accent);
+  outline-offset:1px;
+  border-color:var(--accent);
+}
+.out{
+  font-family:var(--mono);
+  font-size:13px;
+  color:var(--accent);
+  background:#0d1310;
+  border:1px solid var(--accent-dim);
+  border-radius:6px;
+  padding:11px 12px;
+  min-height:92px;
+  white-space:pre-wrap;
+  word-break:break-word;
+  overflow-x:auto;
+}
+.out.is-err{color:var(--err); border-color:#4a2420}
+.out:empty::before{content:"—"; color:var(--line)}
+
+.row{display:flex; gap:10px; flex-wrap:wrap; align-items:center; min-width:0}
+.row > .field{flex:1; min-width:220px}
+
+.controls{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+button.op{
+  font-family:var(--mono);
+  font-size:12px;
+  letter-spacing:.02em;
+  color:var(--bg);
+  background:var(--accent);
+  border:none;
+  border-radius:6px;
+  padding:8px 14px;
+  cursor:pointer;
+  font-weight:600;
+}
+button.op:hover{filter:brightness(1.08)}
+button.ghost{
+  font-family:var(--mono);
+  font-size:12px;
+  color:var(--dim);
+  background:transparent;
+  border:1px solid var(--line);
+  border-radius:6px;
+  padding:8px 12px;
+  cursor:pointer;
+}
+button.ghost:hover{color:var(--fg); border-color:var(--dim)}
+.swap-row{display:flex; align-items:center; gap:10px}
+
+.mini-note{
+  font-size:11.5px;
+  color:var(--dim);
+  line-height:1.6;
+  border-top:1px dashed var(--line);
+  padding-top:10px;
+  margin-top:2px;
+}
+.mini-note code{color:var(--fg)}
+
+table.jwt{width:100%; border-collapse:collapse; font-size:12px}
+table.jwt td{padding:5px 8px 5px 0; vertical-align:top; border-bottom:1px dashed var(--line)}
+table.jwt td.k{color:var(--dim); white-space:nowrap; width:1%}
+table.jwt tr:last-child td{border-bottom:none}
+
+.footer{
+  text-align:center;
+  font-size:11px;
+  color:var(--dim);
+  padding-top:6px;
+}
+
+@media (max-width:560px){
+  .wrap{padding-block:18px 32px}
+  .hero{padding:16px}
+  .hero h1{font-size:19px}
+  .console{padding:14px}
+}
+</style>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+
+<div class="wrap">
+
+  <div class="titlebar">
+    <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+    <span class="name">cipherbench — zsh</span>
+    <span class="path">~/toolkit</span>
+  </div>
+
+  <div class="hero">
+    <h1>Ethical Hacking Kitchen<span class="cursor"></span></h1>
+    <p>Twenty-one encoders, decoders, ciphers, and formatters for puzzle-solving and everyday dev work — Base64/32, hex, URL, Caesar/ROT, Vigenère, Atbash, Morse, binary, hashing, JWT, JSON, timestamps, UUID/string generation, text tools, AES-GCM, Gzip, HTML entities, Unicode escapes, IOC defanging, and a text extractor. Everything runs locally in this page — nothing you type leaves your browser.</p>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Tools">
+    <button class="tab" role="tab" data-tool="base64" aria-selected="true"><span class="n">01</span>Base64</button>
+    <button class="tab" role="tab" data-tool="hex"><span class="n">02</span>Hex</button>
+    <button class="tab" role="tab" data-tool="url"><span class="n">03</span>URL</button>
+    <button class="tab" role="tab" data-tool="caesar"><span class="n">04</span>Caesar / ROT</button>
+    <button class="tab" role="tab" data-tool="morse"><span class="n">05</span>Morse</button>
+    <button class="tab" role="tab" data-tool="binary"><span class="n">06</span>Binary</button>
+    <button class="tab" role="tab" data-tool="hash"><span class="n">07</span>Hash</button>
+    <button class="tab" role="tab" data-tool="jwt"><span class="n">08</span>JWT</button>
+    <button class="tab" role="tab" data-tool="base32"><span class="n">09</span>Base32</button>
+    <button class="tab" role="tab" data-tool="vigenere"><span class="n">10</span>Vigenère</button>
+    <button class="tab" role="tab" data-tool="atbash"><span class="n">11</span>Atbash</button>
+    <button class="tab" role="tab" data-tool="json"><span class="n">12</span>JSON</button>
+    <button class="tab" role="tab" data-tool="time"><span class="n">13</span>Timestamp</button>
+    <button class="tab" role="tab" data-tool="gen"><span class="n">14</span>Generator</button>
+    <button class="tab" role="tab" data-tool="text"><span class="n">15</span>Text</button>
+    <button class="tab" role="tab" data-tool="aes"><span class="n">16</span>AES</button>
+    <button class="tab" role="tab" data-tool="gzip"><span class="n">17</span>Gzip</button>
+    <button class="tab" role="tab" data-tool="html"><span class="n">18</span>HTML Entities</button>
+    <button class="tab" role="tab" data-tool="unicode"><span class="n">19</span>Unicode Escape</button>
+    <button class="tab" role="tab" data-tool="defang"><span class="n">20</span>Defang / Refang</button>
+    <button class="tab" role="tab" data-tool="extract"><span class="n">21</span>Extractor</button>
+  </div>
+
+  <!-- BASE64 -->
+  <section class="console" id="panel-base64">
+    <div class="tool-head"><h2>$ base64</h2><span class="hint">RFC 4648 — handles UTF‑8 safely</span></div>
+    <div class="field"><label for="b64-in">Input</label><textarea id="b64-in" placeholder="Type or paste text here…"></textarea></div>
+    <div class="controls">
+      <button class="op" data-act="b64-encode">Encode →</button>
+      <button class="op" data-act="b64-decode">← Decode</button>
+      <button class="ghost" data-act="b64-swap">Swap</button>
+      <button class="ghost" data-act="b64-copy">Copy output</button>
+    </div>
+    <div class="field"><label for="b64-out">Output</label><div class="out" id="b64-out"></div></div>
+  </section>
+
+  <!-- HEX -->
+  <section class="console" id="panel-hex" hidden>
+    <div class="tool-head"><h2>$ xxd</h2><span class="hint">UTF‑8 bytes as hex</span></div>
+    <div class="field"><label for="hex-in">Input</label><textarea id="hex-in" placeholder="Type text, or paste hex to decode…"></textarea></div>
+    <div class="controls">
+      <button class="op" data-act="hex-encode">Encode →</button>
+      <button class="op" data-act="hex-decode">← Decode</button>
+      <button class="ghost" data-act="hex-swap">Swap</button>
+      <button class="ghost" data-act="hex-copy">Copy output</button>
+    </div>
+    <div class="field"><label for="hex-out">Output</label><div class="out" id="hex-out"></div></div>
+  </section>
+
+  <!-- URL -->
+  <section class="console" id="panel-url" hidden>
+    <div class="tool-head"><h2>$ urlencode</h2><span class="hint">percent-encoding</span></div>
+    <div class="field"><label for="url-in">Input</label><textarea id="url-in" placeholder="https://example.com/search?q=hello world"></textarea></div>
+    <div class="controls">
+      <button class="op" data-act="url-encode">Encode →</button>
+      <button class="op" data-act="url-decode">← Decode</button>
+      <button class="ghost" data-act="url-swap">Swap</button>
+      <button class="ghost" data-act="url-copy">Copy output</button>
+    </div>
+    <div class="field"><label for="url-out">Output</label><div class="out" id="url-out"></div></div>
+  </section>
+
+  <!-- CAESAR / ROT -->
+  <section class="console" id="panel-caesar" hidden>
+    <div class="tool-head"><h2>$ rotate</h2><span class="hint">shift letters A–Z / a–z, everything else untouched</span></div>
+    <div class="field"><label for="rot-in">Input</label><textarea id="rot-in" placeholder="Khoor, ixqghu!"></textarea></div>
+    <div class="row">
+      <div class="field" style="max-width:180px">
+        <label for="rot-shift">Shift</label>
+        <input type="number" id="rot-shift" value="13" min="-25" max="25">
+      </div>
+      <div class="controls" style="margin-top:18px">
+        <button class="op" data-act="rot-apply">Apply shift</button>
+        <button class="ghost" data-act="rot-13">Quick ROT13</button>
+        <button class="ghost" data-act="rot-brute">Show all 25 shifts</button>
+        <button class="ghost" data-act="rot-copy">Copy output</button>
+      </div>
+    </div>
+    <div class="field"><label for="rot-out">Output</label><div class="out" id="rot-out"></div></div>
+  </section>
+
+  <!-- MORSE -->
+  <section class="console" id="panel-morse" hidden>
+    <div class="tool-head"><h2>$ morse</h2><span class="hint">letters, digits, basic punctuation · words separated by " / "</span></div>
+    <div class="field"><label for="morse-in">Input</label><textarea id="morse-in" placeholder="SOS, or  ... --- ... "></textarea></div>
+    <div class="controls">
+      <button class="op" data-act="morse-encode">Text → Morse</button>
+      <button class="op" data-act="morse-decode">Morse → Text</button>
+      <button class="ghost" data-act="morse-swap">Swap</button>
+      <button class="ghost" data-act="morse-copy">Copy output</button>
+    </div>
+    <div class="field"><label for="morse-out">Output</label><div class="out" id="morse-out"></div></div>
+  </section>
+
+  <!-- BINARY -->
+  <section class="console" id="panel-binary" hidden>
+    <div class="tool-head"><h2>$ bin</h2><span class="hint">8‑bit groups, space separated</span></div>
+    <div class="field"><label for="bin-in">Input</label><textarea id="bin-in" placeholder="Type text, or paste binary to decode…"></textarea></div>
+    <div class="controls">
+      <button class="op" data-act="bin-encode">Encode →</button>
+      <button class="op" data-act="bin-decode">← Decode</button>
+      <button class="ghost" data-act="bin-swap">Swap</button>
+      <button class="ghost" data-act="bin-copy">Copy output</button>
+    </div>
+    <div class="field"><label for="bin-out">Output</label><div class="out" id="bin-out"></div></div>
+  </section>
+
+  <!-- HASH -->
+  <section class="console" id="panel-hash" hidden>
+    <div class="tool-head"><h2>$ digest</h2><span class="hint">one-way — for checksums / lookups, not for hiding secrets</span></div>
+    <div class="field"><label for="hash-in">Input</label><textarea id="hash-in" placeholder="Text to hash…"></textarea></div>
+    <div class="controls">
+      <button class="op" data-act="hash-run">Compute all</button>
+      <button class="ghost" data-act="hash-copy">Copy output</button>
+    </div>
+    <div class="field"><label>Output</label><div class="out" id="hash-out"></div></div>
+    <div class="mini-note">MD5 is included for recognizing legacy hashes only — it's cryptographically broken. Don't use it, or raw SHA‑256, to store real passwords; that needs a slow, salted algorithm like bcrypt or Argon2, done server‑side.</div>
+  </section>
+
+  <!-- JWT -->
+  <section class="console" id="panel-jwt" hidden>
+    <div class="tool-head"><h2>$ jwt decode</h2><span class="hint">reads header + payload only — does not verify the signature</span></div>
+    <div class="field"><label for="jwt-in">Token</label><textarea id="jwt-in" placeholder="eyJhbGciOi...​.eyJzdWIiOi...​.signature"></textarea></div>
+    <div class="controls">
+      <button class="op" data-act="jwt-decode">Decode</button>
+      <button class="ghost" data-act="jwt-copy">Copy as text</button>
+    </div>
+    <div class="field"><label>Header</label><div class="out" id="jwt-header"></div></div>
+    <div class="field"><label>Payload</label><div class="out" id="jwt-payload"></div></div>
+    <div class="mini-note">A decoded payload is <em>not</em> proof of anything — anyone can craft one. Only a signature check against the real secret or public key says a token is genuine.</div>
+  </section>
+
+  <!-- BASE32 -->
+  <section class="console" id="panel-base32" hidden>
+    <div class="tool-head"><h2>$ base32</h2><span class="hint">RFC 4648 — used by TOTP secrets, etc.</span></div>
+    <div class="field"><label for="b32-in">Input</label><textarea id="b32-in" placeholder="Type or paste text here…"></textarea></div>
+    <div class="controls">
+      <button class="op" data-act="b32-encode">Encode →</button>
+      <button class="op" data-act="b32-decode">← Decode</button>
+      <button class="ghost" data-act="b32-swap">Swap</button>
+      <button class="ghost" data-act="b32-copy">Copy output</button>
+    </div>
+    <div class="field"><label for="b32-out">Output</label><div class="out" id="b32-out"></div></div>
+  </section>
+
+  <!-- VIGENERE -->
+  <section class="console" id="panel-vigenere" hidden>
+    <div class="tool-head"><h2>$ vigenere</h2><span class="hint">polyalphabetic shift cipher, keyword-driven</span></div>
+    <div class="field"><label for="vig-in">Input</label><textarea id="vig-in" placeholder="Attack at dawn"></textarea></div>
+    <div class="field" style="max-width:260px"><label for="vig-key">Keyword</label><input type="text" id="vig-key" value="LEMON"></div>
+    <div class="controls">
+      <button class="op" data-act="vig-encode">Encode →</button>
+      <button class="op" data-act="vig-decode">← Decode</button>
+      <button class="ghost" data-act="vig-copy">Copy output</button>
+    </div>
+    <div class="field"><label for="vig-out">Output</label><div class="out" id="vig-out"></div></div>
+  </section>
+
+  <!-- ATBASH -->
+  <section class="console" id="panel-atbash" hidden>
+    <div class="tool-head"><h2>$ atbash</h2><span class="hint">A↔Z, B↔Y … mirror substitution — its own inverse</span></div>
+    <div class="field"><label for="atb-in">Input</label><textarea id="atb-in" placeholder="Zoo yrfe, xlnmvw!"></textarea></div>
+    <div class="controls">
+      <button class="op" data-act="atb-run">Transform</button>
+      <button class="ghost" data-act="atb-copy">Copy output</button>
+    </div>
+    <div class="field"><label for="atb-out">Output</label><div class="out" id="atb-out"></div></div>
+  </section>
+
+  <!-- JSON -->
+  <section class="console" id="panel-json" hidden>
+    <div class="tool-head"><h2>$ jq</h2><span class="hint">format, validate, or minify</span></div>
+    <div class="field"><label for="json-in">Input</label><textarea id="json-in" placeholder='{"hello":"world","n":1}'></textarea></div>
+    <div class="controls">
+      <button class="op" data-act="json-format">Format</button>
+      <button class="op" data-act="json-minify">Minify</button>
+      <button class="ghost" data-act="json-copy">Copy output</button>
+    </div>
+    <div class="field"><label for="json-out">Output</label><div class="out" id="json-out"></div></div>
+  </section>
+
+  <!-- TIMESTAMP -->
+  <section class="console" id="panel-time" hidden>
+    <div class="tool-head"><h2>$ date</h2><span class="hint">Unix epoch ⇄ human-readable, local + UTC</span></div>
+    <div class="row">
+      <div class="field">
+        <label for="time-epoch">Unix epoch (seconds)</label>
+        <input type="text" id="time-epoch" placeholder="e.g. 1770000000">
+      </div>
+      <div class="controls" style="margin-top:18px">
+        <button class="op" data-act="time-now">Use now</button>
+        <button class="op" data-act="time-to-human">Epoch → Date</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="time-human">Date / time (your local timezone)</label>
+        <input type="text" id="time-human" placeholder="e.g. 2026-11-06T20:47">
+      </div>
+      <div class="controls" style="margin-top:18px">
+        <button class="op" data-act="time-to-epoch">Date → Epoch</button>
+      </div>
+    </div>
+    <div class="field"><label>Output</label><div class="out" id="time-out"></div></div>
+  </section>
+
+  <!-- GENERATOR -->
+  <section class="console" id="panel-gen" hidden>
+    <div class="tool-head"><h2>$ gen</h2><span class="hint">UUID v4 and random strings, via crypto.getRandomValues</span></div>
+    <div class="controls">
+      <button class="op" data-act="gen-uuid">New UUID v4</button>
+    </div>
+    <div class="field"><label>UUID</label><div class="out" id="gen-uuid-out"></div></div>
+    <div class="row">
+      <div class="field" style="max-width:160px">
+        <label for="gen-len">Length</label>
+        <input type="number" id="gen-len" value="20" min="4" max="128">
+      </div>
+      <div class="field" style="max-width:260px">
+        <label for="gen-charset">Charset</label>
+        <select id="gen-charset">
+          <option value="alnum">Letters + digits</option>
+          <option value="alpha">Letters only</option>
+          <option value="hex">Hex</option>
+          <option value="full">Letters + digits + symbols</option>
+        </select>
+      </div>
+      <div class="controls" style="margin-top:18px">
+        <button class="op" data-act="gen-string">Generate string</button>
+      </div>
+    </div>
+    <div class="field"><label>Random string</label><div class="out" id="gen-str-out"></div></div>
+  </section>
+
+  <!-- TEXT -->
+  <section class="console" id="panel-text" hidden>
+    <div class="tool-head"><h2>$ wc / tr</h2><span class="hint">case conversion, reversing, counting</span></div>
+    <div class="field"><label for="txt-in">Input</label><textarea id="txt-in" placeholder="Type or paste text here…"></textarea></div>
+    <div class="controls">
+      <button class="op" data-act="txt-upper">UPPERCASE</button>
+      <button class="op" data-act="txt-lower">lowercase</button>
+      <button class="op" data-act="txt-title">Title Case</button>
+      <button class="op" data-act="txt-reverse">esreveR</button>
+      <button class="op" data-act="txt-mirror">Mirror →</button>
+      <button class="op" data-act="txt-demirror">← De-mirror</button>
+      <button class="ghost" data-act="txt-copy">Copy output</button>
+    </div>
+    <div class="field"><label for="txt-out">Output</label><div class="out" id="txt-out"></div></div>
+    <div class="mini-note" id="txt-stats">0 characters · 0 words · 0 lines</div>
+    <div class="mini-note">Mirror flips the text left-to-right and swaps each letter for its closest mirrored look-alike (b↔d, p↔q, s↔ꙅ…), the way it'd read held up to a mirror. It's a lossy visual trick, not a cipher — some characters have no true mirror glyph and are approximated. De-mirror reverses the same transform.</div>
+  </section>
+
+  <!-- AES -->
+  <section class="console" id="panel-aes" hidden>
+    <div class="tool-head"><h2>$ openssl aes-256-gcm</h2><span class="hint">AES-GCM via WebCrypto — password-derived key (PBKDF2)</span></div>
+    <div class="field"><label for="aes-in">Input</label><textarea id="aes-in" placeholder="Plaintext to encrypt, or Base64 ciphertext to decrypt…"></textarea></div>
+    <div class="field" style="max-width:320px"><label for="aes-pass">Passphrase</label><input type="text" id="aes-pass" placeholder="shared secret"></div>
+    <div class="controls">
+      <button class="op" data-act="aes-encrypt">Encrypt →</button>
+      <button class="op" data-act="aes-decrypt">← Decrypt</button>
+      <button class="ghost" data-act="aes-copy">Copy output</button>
+    </div>
+    <div class="field"><label for="aes-out">Output</label><div class="out" id="aes-out"></div></div>
+    <div class="mini-note">Encrypt produces one Base64 blob (salt + IV + ciphertext bundled together); feed that same blob back in with the same passphrase to decrypt. This is real AES-256-GCM, but a page like this is for learning the mechanics, not for protecting anything that actually matters.</div>
+  </section>
+
+  <!-- GZIP -->
+  <section class="console" id="panel-gzip" hidden>
+    <div class="tool-head"><h2>$ gzip</h2><span class="hint">native CompressionStream — output shown as Base64</span></div>
+    <div class="field"><label for="gz-in">Input</label><textarea id="gz-in" placeholder="Text to compress, or Base64 gzip data to decompress…"></textarea></div>
+    <div class="controls">
+      <button class="op" data-act="gz-compress">Compress →</button>
+      <button class="op" data-act="gz-decompress">← Decompress</button>
+      <button class="ghost" data-act="gz-copy">Copy output</button>
+    </div>
+    <div class="field"><label for="gz-out">Output</label><div class="out" id="gz-out"></div></div>
+  </section>
+
+  <!-- HTML ENTITIES -->
+  <section class="console" id="panel-html" hidden>
+    <div class="tool-head"><h2>$ htmlentities</h2><span class="hint">escape / unescape for safe HTML embedding</span></div>
+    <div class="field"><label for="html-in">Input</label><textarea id="html-in" placeholder='<script>alert("hi")</script>'></textarea></div>
+    <div class="controls">
+      <button class="op" data-act="html-encode">Encode →</button>
+      <button class="op" data-act="html-decode">← Decode</button>
+      <button class="ghost" data-act="html-copy">Copy output</button>
+    </div>
+    <div class="field"><label for="html-out">Output</label><div class="out" id="html-out"></div></div>
+  </section>
+
+  <!-- UNICODE ESCAPE -->
+  <section class="console" id="panel-unicode" hidden>
+    <div class="tool-head"><h2>$ \u</h2><span class="hint">JS-style \uXXXX escapes</span></div>
+    <div class="field"><label for="uni-in">Input</label><textarea id="uni-in" placeholder="café, or cé..."></textarea></div>
+    <div class="controls">
+      <button class="op" data-act="uni-encode">Encode →</button>
+      <button class="op" data-act="uni-decode">← Decode</button>
+      <button class="ghost" data-act="uni-copy">Copy output</button>
+    </div>
+    <div class="field"><label for="uni-out">Output</label><div class="out" id="uni-out"></div></div>
+  </section>
+
+  <!-- DEFANG -->
+  <section class="console" id="panel-defang" hidden>
+    <div class="tool-head"><h2>$ defang</h2><span class="hint">neutralize URLs/IPs/emails so they can be shared or logged safely</span></div>
+    <div class="field"><label for="dfg-in">Input</label><textarea id="dfg-in" placeholder="http://evil.example.com and 10.0.0.1"></textarea></div>
+    <div class="controls">
+      <button class="op" data-act="dfg-defang">Defang →</button>
+      <button class="op" data-act="dfg-refang">← Refang</button>
+      <button class="ghost" data-act="dfg-copy">Copy output</button>
+    </div>
+    <div class="field"><label for="dfg-out">Output</label><div class="out" id="dfg-out"></div></div>
+  </section>
+
+  <!-- EXTRACTOR -->
+  <section class="console" id="panel-extract" hidden>
+    <div class="tool-head"><h2>$ grep -oE</h2><span class="hint">pull structured values out of a blob of text</span></div>
+    <div class="field"><label for="ext-in">Input</label><textarea id="ext-in" placeholder="Paste logs, emails, or any raw text…"></textarea></div>
+    <div class="controls">
+      <button class="op" data-act="ext-urls">URLs</button>
+      <button class="op" data-act="ext-emails">Emails</button>
+      <button class="op" data-act="ext-ipv4">IPv4</button>
+      <button class="op" data-act="ext-hashes">Hash-looking strings</button>
+      <button class="ghost" data-act="ext-copy">Copy output</button>
+    </div>
+    <div class="field"><label for="ext-out">Output</label><div class="out" id="ext-out"></div></div>
+  </section>
+
+  <div class="footer">Runs entirely client-side. No input is sent anywhere.</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- tabs ----------
+  var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab"));
+  tabs.forEach(function(tab){
+    tab.addEventListener("click", function(){
+      var target = tab.getAttribute("data-tool");
+      tabs.forEach(function(t){ t.setAttribute("aria-selected", t === tab ? "true" : "false"); });
+      document.querySelectorAll(".console").forEach(function(panel){
+        panel.hidden = panel.id !== "panel-" + target;
+      });
+      try{ location.hash = target; }catch(e){}
+    });
+  });
+  var initial = (location.hash || "").replace("#","");
+  var initTab = tabs.find(function(t){ return t.getAttribute("data-tool") === initial; });
+  if (initTab) initTab.click();
+
+  function $(id){ return document.getElementById(id); }
+  function setOut(el, text, isErr){
+    el.textContent = text;
+    el.classList.toggle("is-err", !!isErr);
+  }
+  function copy(text, btn){
+    var fallback = function(){
+      var ta = document.createElement("textarea");
+      ta.value = text; ta.style.position="fixed"; ta.style.opacity="0";
+      document.body.appendChild(ta); ta.select();
+      try{ document.execCommand("copy"); }catch(e){}
+      document.body.removeChild(ta);
+    };
+    var flash = function(){
+      if(!btn) return;
+      var old = btn.textContent;
+      btn.textContent = "Copied";
+      setTimeout(function(){ btn.textContent = old; }, 1100);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(flash, function(){ fallback(); flash(); });
+    } else { fallback(); flash(); }
+  }
+
+  // ---------- utf8-safe base64 ----------
+  function toB64(str){
+    var bytes = new TextEncoder().encode(str);
+    var bin = "";
+    bytes.forEach(function(b){ bin += String.fromCharCode(b); });
+    return btoa(bin);
+  }
+  function fromB64(str){
+    var bin = atob(str.trim());
+    var bytes = new Uint8Array(bin.length);
+    for (var i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder("utf-8", {fatal:false}).decode(bytes);
+  }
+
+  // ===================== BASE64 =====================
+  document.querySelector("[data-act='b64-encode']").addEventListener("click", function(){
+    try{ setOut($("b64-out"), toB64($("b64-in").value)); }
+    catch(e){ setOut($("b64-out"), "Couldn't encode that: " + e.message, true); }
+  });
+  document.querySelector("[data-act='b64-decode']").addEventListener("click", function(){
+    try{ setOut($("b64-out"), fromB64($("b64-in").value)); }
+    catch(e){ setOut($("b64-out"), "Not valid Base64.", true); }
+  });
+  document.querySelector("[data-act='b64-swap']").addEventListener("click", function(){
+    $("b64-in").value = $("b64-out").textContent; setOut($("b64-out"), "");
+  });
+  document.querySelector("[data-act='b64-copy']").addEventListener("click", function(e){
+    copy($("b64-out").textContent, e.currentTarget);
+  });
+
+  // ===================== HEX =====================
+  function toHex(str){
+    var bytes = new TextEncoder().encode(str);
+    return Array.prototype.map.call(bytes, function(b){ return b.toString(16).padStart(2,"0"); }).join(" ");
+  }
+  function fromHex(str){
+    var clean = str.trim().replace(/0x/gi,"").replace(/[\s,]+/g,"");
+    if (clean.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(clean)) throw new Error("bad hex");
+    var bytes = new Uint8Array(clean.length/2);
+    for (var i=0;i<clean.length;i+=2) bytes[i/2] = parseInt(clean.substr(i,2),16);
+    return new TextDecoder("utf-8",{fatal:false}).decode(bytes);
+  }
+  document.querySelector("[data-act='hex-encode']").addEventListener("click", function(){
+    try{ setOut($("hex-out"), toHex($("hex-in").value)); }
+    catch(e){ setOut($("hex-out"), "Couldn't encode that.", true); }
+  });
+  document.querySelector("[data-act='hex-decode']").addEventListener("click", function(){
+    try{ setOut($("hex-out"), fromHex($("hex-in").value)); }
+    catch(e){ setOut($("hex-out"), "Not valid hex (needs pairs of 0-9/a-f).", true); }
+  });
+  document.querySelector("[data-act='hex-swap']").addEventListener("click", function(){
+    $("hex-in").value = $("hex-out").textContent; setOut($("hex-out"), "");
+  });
+  document.querySelector("[data-act='hex-copy']").addEventListener("click", function(e){
+    copy($("hex-out").textContent, e.currentTarget);
+  });
+
+  // ===================== URL =====================
+  document.querySelector("[data-act='url-encode']").addEventListener("click", function(){
+    try{ setOut($("url-out"), encodeURIComponent($("url-in").value)); }
+    catch(e){ setOut($("url-out"), "Couldn't encode that.", true); }
+  });
+  document.querySelector("[data-act='url-decode']").addEventListener("click", function(){
+    try{ setOut($("url-out"), decodeURIComponent($("url-in").value)); }
+    catch(e){ setOut($("url-out"), "Not valid percent-encoding.", true); }
+  });
+  document.querySelector("[data-act='url-swap']").addEventListener("click", function(){
+    $("url-in").value = $("url-out").textContent; setOut($("url-out"), "");
+  });
+  document.querySelector("[data-act='url-copy']").addEventListener("click", function(e){
+    copy($("url-out").textContent, e.currentTarget);
+  });
+
+  // ===================== CAESAR / ROT =====================
+  function rotate(str, shift){
+    shift = ((shift % 26) + 26) % 26;
+    return str.replace(/[a-zA-Z]/g, function(ch){
+      var base = ch <= "Z" ? 65 : 97;
+      return String.fromCharCode((ch.charCodeAt(0) - base + shift) % 26 + base);
+    });
+  }
+  document.querySelector("[data-act='rot-apply']").addEventListener("click", function(){
+    var shift = parseInt($("rot-shift").value, 10) || 0;
+    setOut($("rot-out"), rotate($("rot-in").value, shift));
+  });
+  document.querySelector("[data-act='rot-13']").addEventListener("click", function(){
+    $("rot-shift").value = 13;
+    setOut($("rot-out"), rotate($("rot-in").value, 13));
+  });
+  document.querySelector("[data-act='rot-brute']").addEventListener("click", function(){
+    var src = $("rot-in").value;
+    var lines = [];
+    for (var s=1; s<26; s++){
+      lines.push(String(s).padStart(2,"0") + "  " + rotate(src, s));
+    }
+    setOut($("rot-out"), lines.join("\n"));
+  });
+  document.querySelector("[data-act='rot-copy']").addEventListener("click", function(e){
+    copy($("rot-out").textContent, e.currentTarget);
+  });
+
+  // ===================== MORSE =====================
+  var MORSE = {
+    A:".-",B:"-...",C:"-.-.",D:"-..",E:".",F:"..-.",G:"--.",H:"....",I:"..",J:".---",
+    K:"-.-",L:".-..",M:"--",N:"-.",O:"---",P:".--.",Q:"--.-",R:".-.",S:"...",T:"-",
+    U:"..-",V:"...-",W:".--",X:"-..-",Y:"-.--",Z:"--..",
+    0:"-----",1:".----",2:"..---",3:"...--",4:"....-",5:".....",6:"-....",7:"--...",8:"---..",9:"----.",
+    ".":".-.-.-", ",":"--..--", "?":"..--..", "'":".----.", "!":"-.-.--", "/":"-..-.",
+    "(":"-.--.", ")":"-.--.-", "&":".-...", ":":"---...", ";":"-.-.-.", "=":"-...-",
+    "+":".-.-.", "-":"-....-", "_":"..--.-", '"':".-..-.", "@":".--.-."
+  };
+  var MORSE_REV = {};
+  Object.keys(MORSE).forEach(function(k){ MORSE_REV[MORSE[k]] = k; });
+
+  document.querySelector("[data-act='morse-encode']").addEventListener("click", function(){
+    var text = $("morse-in").value.toUpperCase();
+    var words = text.split(/\s+/).filter(Boolean);
+    var out = words.map(function(word){
+      return word.split("").map(function(ch){ return MORSE[ch] || ""; }).filter(Boolean).join(" ");
+    }).join(" / ");
+    setOut($("morse-out"), out);
+  });
+  document.querySelector("[data-act='morse-decode']").addEventListener("click", function(){
+    try{
+      var words = $("morse-in").value.trim().split(/\s*\/\s*/);
+      var out = words.map(function(word){
+        return word.trim().split(/\s+/).map(function(code){ return MORSE_REV[code] || "?"; }).join("");
+      }).join(" ");
+      setOut($("morse-out"), out);
+    } catch(e){ setOut($("morse-out"), "Couldn't parse that as Morse.", true); }
+  });
+  document.querySelector("[data-act='morse-swap']").addEventListener("click", function(){
+    $("morse-in").value = $("morse-out").textContent; setOut($("morse-out"), "");
+  });
+  document.querySelector("[data-act='morse-copy']").addEventListener("click", function(e){
+    copy($("morse-out").textContent, e.currentTarget);
+  });
+
+  // ===================== BINARY =====================
+  function toBin(str){
+    var bytes = new TextEncoder().encode(str);
+    return Array.prototype.map.call(bytes, function(b){ return b.toString(2).padStart(8,"0"); }).join(" ");
+  }
+  function fromBin(str){
+    var groups = str.trim().split(/\s+/).filter(Boolean);
+    if (!groups.every(function(g){ return /^[01]{1,8}$/.test(g); })) throw new Error("bad binary");
+    var bytes = new Uint8Array(groups.map(function(g){ return parseInt(g,2); }));
+    return new TextDecoder("utf-8",{fatal:false}).decode(bytes);
+  }
+  document.querySelector("[data-act='bin-encode']").addEventListener("click", function(){
+    try{ setOut($("bin-out"), toBin($("bin-in").value)); }
+    catch(e){ setOut($("bin-out"), "Couldn't encode that.", true); }
+  });
+  document.querySelector("[data-act='bin-decode']").addEventListener("click", function(){
+    try{ setOut($("bin-out"), fromBin($("bin-in").value)); }
+    catch(e){ setOut($("bin-out"), "Not valid binary (space-separated 0/1 groups).", true); }
+  });
+  document.querySelector("[data-act='bin-swap']").addEventListener("click", function(){
+    $("bin-in").value = $("bin-out").textContent; setOut($("bin-out"), "");
+  });
+  document.querySelector("[data-act='bin-copy']").addEventListener("click", function(e){
+    copy($("bin-out").textContent, e.currentTarget);
+  });
+
+  // ===================== HASH (SHA via SubtleCrypto, MD5 hand-rolled for ID purposes) =====================
+  function md5(str){
+    // Compact MD5 implementation (public-domain style, used only for
+    // recognizing legacy hashes in this toolkit — not for security).
+    function rotl(x,c){ return (x<<c)|(x>>>(32-c)); }
+    function toBytes(s){ return new TextEncoder().encode(s); }
+    var K = [];
+    for (var i=0;i<64;i++) K[i] = Math.floor(Math.abs(Math.sin(i+1)) * 4294967296) >>> 0;
+    var S = [7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,
+             5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,
+             4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,
+             6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21];
+    var msg = toBytes(str);
+    var bitLen = msg.length * 8;
+    var withOne = new Uint8Array(((msg.length + 9 + 63) >> 6 << 6));
+    withOne.set(msg);
+    withOne[msg.length] = 0x80;
+    var view = new DataView(withOne.buffer);
+    view.setUint32(withOne.length - 8, bitLen >>> 0, true);
+    view.setUint32(withOne.length - 4, Math.floor(bitLen / 4294967296), true);
+
+    var a0=0x67452301,b0=0xefcdab89,c0=0x98badcfe,d0=0x10325476;
+    for (var chunk=0; chunk<withOne.length; chunk+=64){
+      var M = [];
+      for (var j=0;j<16;j++) M[j] = view.getUint32(chunk + j*4, true);
+      var A=a0,B=b0,C=c0,D=d0;
+      for (var k=0;k<64;k++){
+        var F,g;
+        if (k<16){ F=(B&C)|(~B&D); g=k; }
+        else if (k<32){ F=(D&B)|(~D&C); g=(5*k+1)%16; }
+        else if (k<48){ F=B^C^D; g=(3*k+5)%16; }
+        else { F=C^(B|~D); g=(7*k)%16; }
+        F = (F + A + K[k] + M[g]) >>> 0;
+        A=D; D=C; C=B;
+        B = (B + rotl(F, S[k])) >>> 0;
+      }
+      a0=(a0+A)>>>0; b0=(b0+B)>>>0; c0=(c0+C)>>>0; d0=(d0+D)>>>0;
+    }
+    function toHexLE(n){
+      var bytes=[n&0xff,(n>>>8)&0xff,(n>>>16)&0xff,(n>>>24)&0xff];
+      return bytes.map(function(b){ return b.toString(16).padStart(2,"0"); }).join("");
+    }
+    return toHexLE(a0)+toHexLE(b0)+toHexLE(c0)+toHexLE(d0);
+  }
+
+  async function sha(algo, str){
+    var data = new TextEncoder().encode(str);
+    var buf = await crypto.subtle.digest(algo, data);
+    return Array.prototype.map.call(new Uint8Array(buf), function(b){ return b.toString(16).padStart(2,"0"); }).join("");
+  }
+
+  document.querySelector("[data-act='hash-run']").addEventListener("click", async function(){
+    var val = $("hash-in").value;
+    var out = $("hash-out");
+    setOut(out, "computing…");
+    try{
+      var md5v = md5(val);
+      var sha1v = await sha("SHA-1", val);
+      var sha256v = await sha("SHA-256", val);
+      setOut(out, "MD5     " + md5v + "\nSHA-1   " + sha1v + "\nSHA-256 " + sha256v);
+    } catch(e){
+      setOut(out, "Couldn't compute a hash for that input.", true);
+    }
+  });
+  document.querySelector("[data-act='hash-copy']").addEventListener("click", function(e){
+    copy($("hash-out").textContent, e.currentTarget);
+  });
+
+  // ===================== JWT =====================
+  function b64urlToJson(part){
+    var s = part.replace(/-/g,"+").replace(/_/g,"/");
+    while (s.length % 4) s += "=";
+    var text = fromB64(s);
+    return JSON.parse(text);
+  }
+  function renderKV(obj){
+    var rows = Object.keys(obj).map(function(k){
+      var v = obj[k];
+      if (typeof v === "object") v = JSON.stringify(v);
+      return "<tr><td class='k'>" + k + "</td><td>" + String(v) + "</td></tr>";
+    }).join("");
+    var table = document.createElement("table");
+    table.className = "jwt";
+    table.innerHTML = rows;
+    return table;
+  }
+  document.querySelector("[data-act='jwt-decode']").addEventListener("click", function(){
+    var token = $("jwt-in").value.trim();
+    var parts = token.split(".");
+    var headerEl = $("jwt-header"), payloadEl = $("jwt-payload");
+    headerEl.innerHTML = ""; payloadEl.innerHTML = "";
+    if (parts.length < 2){
+      setOut(headerEl, "Not a JWT — expected header.payload.signature", true);
+      return;
+    }
+    try{
+      var header = b64urlToJson(parts[0]);
+      headerEl.classList.remove("is-err");
+      headerEl.appendChild(renderKV(header));
+    } catch(e){ setOut(headerEl, "Couldn't decode the header.", true); }
+    try{
+      var payload = b64urlToJson(parts[1]);
+      payloadEl.classList.remove("is-err");
+      payloadEl.appendChild(renderKV(payload));
+    } catch(e){ setOut(payloadEl, "Couldn't decode the payload.", true); }
+  });
+  document.querySelector("[data-act='jwt-copy']").addEventListener("click", function(e){
+    var text = $("jwt-header").textContent + "\n" + $("jwt-payload").textContent;
+    copy(text, e.currentTarget);
+  });
+
+  // ===================== BASE32 =====================
+  var B32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  function toB32(str){
+    var bytes = new TextEncoder().encode(str);
+    var bits = "", out = "";
+    for (var i=0;i<bytes.length;i++) bits += bytes[i].toString(2).padStart(8,"0");
+    for (var j=0;j<bits.length;j+=5){
+      var chunk = bits.substr(j,5);
+      if (chunk.length < 5) chunk = chunk.padEnd(5,"0");
+      out += B32_ALPHABET[parseInt(chunk,2)];
+    }
+    while (out.length % 8 !== 0) out += "=";
+    return out;
+  }
+  function fromB32(str){
+    var clean = str.trim().toUpperCase().replace(/=+$/,"");
+    var bits = "";
+    for (var i=0;i<clean.length;i++){
+      var idx = B32_ALPHABET.indexOf(clean[i]);
+      if (idx === -1) throw new Error("bad base32 char");
+      bits += idx.toString(2).padStart(5,"0");
+    }
+    var bytes = [];
+    for (var j=0;j+8<=bits.length;j+=8) bytes.push(parseInt(bits.substr(j,8),2));
+    return new TextDecoder("utf-8",{fatal:false}).decode(new Uint8Array(bytes));
+  }
+  document.querySelector("[data-act='b32-encode']").addEventListener("click", function(){
+    try{ setOut($("b32-out"), toB32($("b32-in").value)); }
+    catch(e){ setOut($("b32-out"), "Couldn't encode that.", true); }
+  });
+  document.querySelector("[data-act='b32-decode']").addEventListener("click", function(){
+    try{ setOut($("b32-out"), fromB32($("b32-in").value)); }
+    catch(e){ setOut($("b32-out"), "Not valid Base32.", true); }
+  });
+  document.querySelector("[data-act='b32-swap']").addEventListener("click", function(){
+    $("b32-in").value = $("b32-out").textContent; setOut($("b32-out"), "");
+  });
+  document.querySelector("[data-act='b32-copy']").addEventListener("click", function(e){
+    copy($("b32-out").textContent, e.currentTarget);
+  });
+
+  // ===================== VIGENERE =====================
+  function vigenere(str, key, decode){
+    key = key.replace(/[^a-zA-Z]/g,"");
+    if (!key) throw new Error("empty key");
+    var ku = key.toUpperCase();
+    var ki = 0;
+    return str.replace(/[a-zA-Z]/g, function(ch){
+      var base = ch <= "Z" ? 65 : 97;
+      var shift = ku.charCodeAt(ki % ku.length) - 65;
+      if (decode) shift = -shift;
+      ki++;
+      return String.fromCharCode((ch.charCodeAt(0) - base + shift + 26) % 26 + base);
+    });
+  }
+  document.querySelector("[data-act='vig-encode']").addEventListener("click", function(){
+    try{ setOut($("vig-out"), vigenere($("vig-in").value, $("vig-key").value, false)); }
+    catch(e){ setOut($("vig-out"), "Enter a keyword (letters only).", true); }
+  });
+  document.querySelector("[data-act='vig-decode']").addEventListener("click", function(){
+    try{ setOut($("vig-out"), vigenere($("vig-in").value, $("vig-key").value, true)); }
+    catch(e){ setOut($("vig-out"), "Enter a keyword (letters only).", true); }
+  });
+  document.querySelector("[data-act='vig-copy']").addEventListener("click", function(e){
+    copy($("vig-out").textContent, e.currentTarget);
+  });
+
+  // ===================== ATBASH =====================
+  function atbash(str){
+    return str.replace(/[a-zA-Z]/g, function(ch){
+      var base = ch <= "Z" ? 65 : 97;
+      return String.fromCharCode(base + (25 - (ch.charCodeAt(0) - base)));
+    });
+  }
+  document.querySelector("[data-act='atb-run']").addEventListener("click", function(){
+    setOut($("atb-out"), atbash($("atb-in").value));
+  });
+  document.querySelector("[data-act='atb-copy']").addEventListener("click", function(e){
+    copy($("atb-out").textContent, e.currentTarget);
+  });
+
+  // ===================== JSON =====================
+  document.querySelector("[data-act='json-format']").addEventListener("click", function(){
+    try{ setOut($("json-out"), JSON.stringify(JSON.parse($("json-in").value), null, 2)); }
+    catch(e){ setOut($("json-out"), "Invalid JSON: " + e.message, true); }
+  });
+  document.querySelector("[data-act='json-minify']").addEventListener("click", function(){
+    try{ setOut($("json-out"), JSON.stringify(JSON.parse($("json-in").value))); }
+    catch(e){ setOut($("json-out"), "Invalid JSON: " + e.message, true); }
+  });
+  document.querySelector("[data-act='json-copy']").addEventListener("click", function(e){
+    copy($("json-out").textContent, e.currentTarget);
+  });
+
+  // ===================== TIMESTAMP =====================
+  function pad(n){ return String(n).padStart(2,"0"); }
+  document.querySelector("[data-act='time-now']").addEventListener("click", function(){
+    var now = Date.now();
+    $("time-epoch").value = Math.floor(now/1000);
+    renderEpoch(Math.floor(now/1000));
+  });
+  function renderEpoch(epoch){
+    var ms = epoch * 1000;
+    var d = new Date(ms);
+    if (isNaN(d.getTime())){ setOut($("time-out"), "Not a valid epoch value.", true); return; }
+    var local = d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+" "+pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds());
+    setOut($("time-out"), "Local:  " + local + "\nUTC:    " + d.toUTCString() + "\nISO:    " + d.toISOString());
+  }
+  document.querySelector("[data-act='time-to-human']").addEventListener("click", function(){
+    var v = $("time-epoch").value.trim();
+    var n = Number(v);
+    if (!v || isNaN(n)){ setOut($("time-out"), "Enter a numeric epoch (seconds).", true); return; }
+    renderEpoch(n);
+  });
+  document.querySelector("[data-act='time-to-epoch']").addEventListener("click", function(){
+    var v = $("time-human").value.trim();
+    var d = new Date(v);
+    if (isNaN(d.getTime())){ setOut($("time-out"), "Couldn't parse that date. Try e.g. 2026-11-06T20:47", true); return; }
+    setOut($("time-out"), "Epoch (seconds): " + Math.floor(d.getTime()/1000) + "\nEpoch (ms):      " + d.getTime());
+  });
+
+  // ===================== GENERATOR =====================
+  document.querySelector("[data-act='gen-uuid']").addEventListener("click", function(){
+    var uuid = (crypto.randomUUID ? crypto.randomUUID() : (function(){
+      var b = crypto.getRandomValues(new Uint8Array(16));
+      b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+      var hex = Array.prototype.map.call(b, function(x){ return x.toString(16).padStart(2,"0"); }).join("");
+      return hex.slice(0,8)+"-"+hex.slice(8,12)+"-"+hex.slice(12,16)+"-"+hex.slice(16,20)+"-"+hex.slice(20);
+    })());
+    setOut($("gen-uuid-out"), uuid);
+  });
+  var CHARSETS = {
+    alnum: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
+    alpha: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+    hex: "0123456789abcdef",
+    full: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*-_=+"
+  };
+  document.querySelector("[data-act='gen-string']").addEventListener("click", function(){
+    var len = Math.max(1, Math.min(256, parseInt($("gen-len").value,10) || 20));
+    var set = CHARSETS[$("gen-charset").value] || CHARSETS.alnum;
+    var rnd = crypto.getRandomValues(new Uint32Array(len));
+    var out = "";
+    for (var i=0;i<len;i++) out += set[rnd[i] % set.length];
+    setOut($("gen-str-out"), out);
+  });
+
+  // ===================== TEXT =====================
+  function updateTextStats(){
+    var v = $("txt-in").value;
+    var words = v.trim() ? v.trim().split(/\s+/).length : 0;
+    var lines = v ? v.split(/\n/).length : 0;
+    $("txt-stats").textContent = v.length + " characters · " + words + " words · " + lines + " lines";
+  }
+  $("txt-in").addEventListener("input", updateTextStats);
+  updateTextStats();
+  document.querySelector("[data-act='txt-upper']").addEventListener("click", function(){
+    setOut($("txt-out"), $("txt-in").value.toUpperCase());
+  });
+  document.querySelector("[data-act='txt-lower']").addEventListener("click", function(){
+    setOut($("txt-out"), $("txt-in").value.toLowerCase());
+  });
+  document.querySelector("[data-act='txt-title']").addEventListener("click", function(){
+    setOut($("txt-out"), $("txt-in").value.replace(/\w\S*/g, function(w){
+      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    }));
+  });
+  document.querySelector("[data-act='txt-reverse']").addEventListener("click", function(){
+    setOut($("txt-out"), $("txt-in").value.split("").reverse().join(""));
+  });
+
+  // Closest visual mirror for each character (best-effort — many glyphs have
+  // no true mirrored twin, so those pass through unchanged).
+  var MIRROR_MAP = {
+    "a":"ɒ","b":"d","c":"ɔ","d":"b","e":"ɘ","f":"Ꮈ","g":"ϱ","h":"ʜ","i":"i","j":"ꞁ",
+    "k":"ʞ","l":"l","m":"m","n":"n","o":"o","p":"q","q":"p","r":"ɿ","s":"ꙅ","t":"ƚ",
+    "u":"u","v":"v","w":"w","x":"x","y":"y","z":"z",
+    "A":"A","B":"ᙠ","C":"Ɔ","D":"ᗡ","E":"Ǝ","F":"ꟻ","G":"Ꭾ","H":"H","I":"I","J":"Ⴑ",
+    "K":"Ꝅ","L":"⅃","M":"M","N":"И","O":"O","P":"ꟼ","Q":"Ꝙ","R":"Я","S":"Ꙅ","T":"T",
+    "U":"U","V":"V","W":"W","X":"X","Y":"Y","Z":"Z",
+    "1":"1","2":"2","3":"Ɛ","(":")" ,")":"(", "[":"]", "]":"[", "{":"}", "}":"{",
+    "<":">", ">":"<", "/":"\\", "\\":"/", "?":"⸮"
+  };
+  var MIRROR_REV = {};
+  Object.keys(MIRROR_MAP).forEach(function(k){ MIRROR_REV[MIRROR_MAP[k]] = k; });
+
+  function mirrorText(str){
+    return str.split("").map(function(ch){ return MIRROR_MAP[ch] || ch; }).reverse().join("");
+  }
+  function demirrorText(str){
+    return str.split("").reverse().map(function(ch){ return MIRROR_REV[ch] || ch; }).join("");
+  }
+  document.querySelector("[data-act='txt-mirror']").addEventListener("click", function(){
+    setOut($("txt-out"), mirrorText($("txt-in").value));
+  });
+  document.querySelector("[data-act='txt-demirror']").addEventListener("click", function(){
+    setOut($("txt-out"), demirrorText($("txt-in").value));
+  });
+
+  document.querySelector("[data-act='txt-copy']").addEventListener("click", function(e){
+    copy($("txt-out").textContent, e.currentTarget);
+  });
+
+  // ===================== AES-GCM =====================
+  async function deriveKey(pass, salt){
+    var baseKey = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey(
+      { name:"PBKDF2", salt: salt, iterations: 150000, hash:"SHA-256" },
+      baseKey, { name:"AES-GCM", length:256 }, false, ["encrypt","decrypt"]
+    );
+  }
+  function bytesToB64(bytes){
+    var bin = ""; bytes.forEach(function(b){ bin += String.fromCharCode(b); });
+    return btoa(bin);
+  }
+  function b64ToBytes(str){
+    var bin = atob(str.trim());
+    var bytes = new Uint8Array(bin.length);
+    for (var i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+  document.querySelector("[data-act='aes-encrypt']").addEventListener("click", async function(){
+    var pass = $("aes-pass").value;
+    if (!pass){ setOut($("aes-out"), "Enter a passphrase first.", true); return; }
+    try{
+      var salt = crypto.getRandomValues(new Uint8Array(16));
+      var iv = crypto.getRandomValues(new Uint8Array(12));
+      var key = await deriveKey(pass, salt);
+      var ct = await crypto.subtle.encrypt({name:"AES-GCM", iv:iv}, key, new TextEncoder().encode($("aes-in").value));
+      var bundle = new Uint8Array(salt.length + iv.length + ct.byteLength);
+      bundle.set(salt,0); bundle.set(iv,salt.length); bundle.set(new Uint8Array(ct), salt.length+iv.length);
+      setOut($("aes-out"), bytesToB64(bundle));
+    } catch(e){ setOut($("aes-out"), "Couldn't encrypt that.", true); }
+  });
+  document.querySelector("[data-act='aes-decrypt']").addEventListener("click", async function(){
+    var pass = $("aes-pass").value;
+    if (!pass){ setOut($("aes-out"), "Enter the passphrase used to encrypt it.", true); return; }
+    try{
+      var bundle = b64ToBytes($("aes-in").value);
+      var salt = bundle.slice(0,16), iv = bundle.slice(16,28), ct = bundle.slice(28);
+      var key = await deriveKey(pass, salt);
+      var pt = await crypto.subtle.decrypt({name:"AES-GCM", iv:iv}, key, ct);
+      setOut($("aes-out"), new TextDecoder().decode(pt));
+    } catch(e){ setOut($("aes-out"), "Wrong passphrase, or not a blob this tool produced.", true); }
+  });
+  document.querySelector("[data-act='aes-copy']").addEventListener("click", function(e){
+    copy($("aes-out").textContent, e.currentTarget);
+  });
+
+  // ===================== GZIP =====================
+  async function gzipCompress(str){
+    if (!window.CompressionStream) throw new Error("unsupported");
+    var cs = new CompressionStream("gzip");
+    var writer = cs.writable.getWriter();
+    writer.write(new TextEncoder().encode(str));
+    writer.close();
+    var buf = await new Response(cs.readable).arrayBuffer();
+    return bytesToB64(new Uint8Array(buf));
+  }
+  async function gzipDecompress(b64){
+    if (!window.DecompressionStream) throw new Error("unsupported");
+    var bytes = b64ToBytes(b64);
+    var ds = new DecompressionStream("gzip");
+    var writer = ds.writable.getWriter();
+    writer.write(bytes);
+    writer.close();
+    var buf = await new Response(ds.readable).arrayBuffer();
+    return new TextDecoder().decode(buf);
+  }
+  document.querySelector("[data-act='gz-compress']").addEventListener("click", async function(){
+    try{ setOut($("gz-out"), await gzipCompress($("gz-in").value)); }
+    catch(e){ setOut($("gz-out"), "Couldn't compress (unsupported in this browser, or bad input).", true); }
+  });
+  document.querySelector("[data-act='gz-decompress']").addEventListener("click", async function(){
+    try{ setOut($("gz-out"), await gzipDecompress($("gz-in").value)); }
+    catch(e){ setOut($("gz-out"), "Not valid gzip data for this tool.", true); }
+  });
+  document.querySelector("[data-act='gz-copy']").addEventListener("click", function(e){
+    copy($("gz-out").textContent, e.currentTarget);
+  });
+
+  // ===================== HTML ENTITIES =====================
+  document.querySelector("[data-act='html-encode']").addEventListener("click", function(){
+    var div = document.createElement("div");
+    div.textContent = $("html-in").value;
+    setOut($("html-out"), div.innerHTML);
+  });
+  document.querySelector("[data-act='html-decode']").addEventListener("click", function(){
+    var div = document.createElement("div");
+    div.innerHTML = $("html-in").value;
+    setOut($("html-out"), div.textContent);
+  });
+  document.querySelector("[data-act='html-copy']").addEventListener("click", function(e){
+    copy($("html-out").textContent, e.currentTarget);
+  });
+
+  // ===================== UNICODE ESCAPE =====================
+  document.querySelector("[data-act='uni-encode']").addEventListener("click", function(){
+    var out = Array.prototype.map.call($("uni-in").value, function(ch){
+      var code = ch.codePointAt(0);
+      return code > 127 ? "\\u" + code.toString(16).padStart(4,"0") : ch;
+    }).join("");
+    setOut($("uni-out"), out);
+  });
+  document.querySelector("[data-act='uni-decode']").addEventListener("click", function(){
+    try{
+      setOut($("uni-out"), $("uni-in").value.replace(/\\u([0-9a-fA-F]{4})/g, function(_, hex){
+        return String.fromCharCode(parseInt(hex,16));
+      }));
+    } catch(e){ setOut($("uni-out"), "Couldn't parse those escapes.", true); }
+  });
+  document.querySelector("[data-act='uni-copy']").addEventListener("click", function(e){
+    copy($("uni-out").textContent, e.currentTarget);
+  });
+
+  // ===================== DEFANG / REFANG =====================
+  function defang(str){
+    return str
+      .replace(/\./g, "[.]")
+      .replace(/http:\/\//gi, "hxxp://")
+      .replace(/https:\/\//gi, "hxxps://")
+      .replace(/@/g, "[at]");
+  }
+  function refang(str){
+    return str
+      .replace(/\[\.\]/g, ".")
+      .replace(/hxxp:\/\//gi, "http://")
+      .replace(/hxxps:\/\//gi, "https://")
+      .replace(/\[at\]/g, "@");
+  }
+  document.querySelector("[data-act='dfg-defang']").addEventListener("click", function(){
+    setOut($("dfg-out"), defang($("dfg-in").value));
+  });
+  document.querySelector("[data-act='dfg-refang']").addEventListener("click", function(){
+    setOut($("dfg-out"), refang($("dfg-in").value));
+  });
+  document.querySelector("[data-act='dfg-copy']").addEventListener("click", function(e){
+    copy($("dfg-out").textContent, e.currentTarget);
+  });
+
+  // ===================== EXTRACTOR =====================
+  function extract(regex, label){
+    var matches = $("ext-in").value.match(regex) || [];
+    var unique = Array.from(new Set(matches));
+    setOut($("ext-out"), unique.length ? unique.join("\n") : "No " + label + " found.");
+  }
+  document.querySelector("[data-act='ext-urls']").addEventListener("click", function(){
+    extract(/\bhttps?:\/\/[^\s"'<>]+/g, "URLs");
+  });
+  document.querySelector("[data-act='ext-emails']").addEventListener("click", function(){
+    extract(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, "emails");
+  });
+  document.querySelector("[data-act='ext-ipv4']").addEventListener("click", function(){
+    extract(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, "IPv4 addresses");
+  });
+  document.querySelector("[data-act='ext-hashes']").addEventListener("click", function(){
+    extract(/\b[a-fA-F0-9]{32}\b|\b[a-fA-F0-9]{40}\b|\b[a-fA-F0-9]{64}\b/g, "hash-looking strings");
+  });
+  document.querySelector("[data-act='ext-copy']").addEventListener("click", function(e){
+    copy($("ext-out").textContent, e.currentTarget);
+  });
+
+})();
+</script>
